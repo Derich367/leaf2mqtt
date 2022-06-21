@@ -66,13 +66,17 @@ abstract class Vehicle {
   Future<Map<String, String>> fetchMonthlyStatistics(DateTime targetDate);
 
   Future<Map<String, String>> fetchBatteryStatus();
+  Future<Map<String, String>> fetchBatteryStatusFromCar();
   Future<bool> startCharging();
+  Future<bool> stopCharging();
 
   Future<Map<String, String>> fetchClimateStatus();
+  Future<Map<String, String>> fetchClimateStatusFromCar();
   Future<bool> startClimate(int targetTemperatureCelsius);
   Future<bool> stopClimate();
 
   Future<Map<String, String>> fetchLocation();
+  Future<Map<String, String>> fetchLocationFromCar();
 }
 
 

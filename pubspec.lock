@@ -8,13 +8,6 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "2.9.0"
-  blowfish_ecb:
-    dependency: transitive
-    description:
-      name: blowfish_ecb
-      url: "https://pub.dartlang.org"
-    source: hosted
-    version: "0.1.0"
   charcode:
     dependency: transitive
     description:
@@ -43,33 +36,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "3.0.1"
-  dartcarwings:
-    dependency: "direct main"
-    description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "21051d9ab6759efa12cd6d1bc9a22af7ee24651f"
-      url: "https://github.com/Tobiaswk/dartcarwings"
-    source: git
-    version: "1.0.0"
   dartnissanconnect:
     dependency: "direct main"
     description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "4c3aaf35aa82cee808c470b34aa13bd2bca96fd5"
-      url: "https://github.com/Tobiaswk/dartnissanconnect"
-    source: git
-    version: "1.0.0"
-  dartnissanconnectna:
-    dependency: "direct main"
-    description:
-      path: "."
-      ref: HEAD
-      resolved-ref: a79b3f8e03de54dbfd10a8a3b50826bccb4b400c
-      url: "https://gitlab.com/tobiaswkjeldsen/dartnissanconnectna"
-    source: git
-    version: "1.0.0"
+      path: dartnissanconnect
+      relative: true
+    source: path
+    version: "1.0.1"
   event_bus:
     dependency: transitive
     description:

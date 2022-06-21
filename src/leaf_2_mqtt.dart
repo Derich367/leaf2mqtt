@@ -100,24 +100,35 @@ Future<void> _login(MqttClientWrapper mqttClient) async {
 }
 
 Future<void> startUpdateLoop(MqttClientWrapper mqttClient, String vin) async {
-  _log.info('Starting loop for $vin');
+  
   final Map<String, String> envVars = Platform.environment;
   final int updateIntervalMinutes = int.tryParse(envVars['UPDATE_INTERVAL_MINUTES']  ?? '60') ?? 60;
   final int chargingUpdateIntervalMinutes = int.tryParse(envVars['CHARGING_UPDATE_INTERVAL_MINUTES'] ?? '15') ?? 15;
+  final updateLoopDisabled = updateIntervalMinutes == 0 && chargingUpdateIntervalMinutes == 0;
 
   subscribeToCommands(mqttClient, vin);
 
-  while (true) {
-    await fetchAndPublishAllStatus(mqttClient, vin);
+  if(updateLoopDisabled){
+    _log.info('Update loop disabled for $vin');  
+    await  Future<void>.delayed(const Duration(milliseconds: 1<<63));
+  } else{
+    _log.info('Starting loop for $vin');  
+    while (true) {  
+      
+      await fetchAndPublishAllStatus(mqttClient, vin);
+      int calculatedUpdateIntervalMinutes = updateIntervalMinutes;
+      if ((_session.executeSync((Vehicle vehicle) => vehicle.isCharging, vin) ?? false) &&
+          chargingUpdateIntervalMinutes < calculatedUpdateIntervalMinutes) {
+        calculatedUpdateIntervalMinutes = chargingUpdateIntervalMinutes;
+      }
 
-    int calculatedUpdateIntervalMinutes = updateIntervalMinutes;
-    if ((_session.executeSync((Vehicle vehicle) => vehicle.isCharging, vin) ?? false) &&
-        chargingUpdateIntervalMinutes < calculatedUpdateIntervalMinutes) {
-      calculatedUpdateIntervalMinutes = chargingUpdateIntervalMinutes;
+      if(calculatedUpdateIntervalMinutes <= 0){
+        calculatedUpdateIntervalMinutes = 60;
+      }
+
+      await Future<void>.delayed(Duration(minutes: calculatedUpdateIntervalMinutes));
+      _log.finer('Loop delay of $calculatedUpdateIntervalMinutes ended for $vin');
     }
-
-    await Future<void>.delayed(Duration(minutes: calculatedUpdateIntervalMinutes));
-    _log.finer('Loop delay of $calculatedUpdateIntervalMinutes ended for $vin');
   }
 }
 
@@ -146,10 +157,18 @@ void subscribeToCommands(MqttClientWrapper mqttClient, String vin) {
         case 'update':
             fetchAndPublishBatteryStatus(mqttClient, vin);
           break;
+        case 'updatefromcar':
+            fetchAndPublishBatteryStatusFromCar(mqttClient, vin);
+          break;
         case 'startcharging':
             _session.executeCommandWithRetry((Vehicle vehicle) => vehicle.startCharging(), vin, _commandAttempts).then(
               (_) => Future<void>.delayed(const Duration(seconds: 5)).then(
-                (_) => fetchAndPublishBatteryStatus(mqttClient, vin)));
+                (_) => fetchAndPublishBatteryStatusFromCar(mqttClient, vin)));
+          break;
+        case 'stopcharging':
+              _session.executeCommandWithRetry((Vehicle vehicle) => vehicle.stopCharging(), vin, _commandAttempts).then(
+              (_) => Future<void>.delayed(const Duration(seconds: 5)).then(
+                (_) => fetchAndPublishBatteryStatusFromCar(mqttClient, vin)));
           break;
         default:
       }
@@ -160,10 +179,13 @@ void subscribeToCommands(MqttClientWrapper mqttClient, String vin) {
       case 'update':
           fetchAndPublishClimateStatus(mqttClient, vin);
         break;
+      case 'updatefromcar':
+          fetchAndPublishClimateStatusFromCar(mqttClient, vin);
+        break;
       case 'stop':
           _session.executeCommandWithRetry((Vehicle vehicle) => vehicle.stopClimate(), vin, _commandAttempts).then(
             (_) => Future<void>.delayed(const Duration(seconds: 5)).then(
-              (_) => fetchAndPublishClimateStatus(mqttClient, vin)));
+              (_) => fetchAndPublishClimateStatusFromCar(mqttClient, vin)));
         break;
       default:
         if (payload?.startsWith('start') ?? false) {
@@ -182,14 +204,13 @@ void subscribeToCommands(MqttClientWrapper mqttClient, String vin) {
               targetTemperatureCelsius = ((targetTemperatureFahrenheit - 32) * 5 / 9).round();
             }
           } else if (payload == 'start') {
-            targetTemperatureCelsius = 21;
+            targetTemperatureCelsius = 19;
           }
 
           if (targetTemperatureCelsius != null){
-            _session.executeCommandWithRetry((Vehicle vehicle) =>
-              vehicle.startClimate(targetTemperatureCelsius), vin, _commandAttempts).then(
-                (_) => Future<void>.delayed(const Duration(seconds: 5)).then(
-                  (_) => fetchAndPublishClimateStatus(mqttClient, vin)));
+            _session.executeCommandWithRetry((Vehicle vehicle) => vehicle.startClimate(targetTemperatureCelsius), vin, _commandAttempts).then(
+                 (_) => Future<void>.delayed(const Duration(seconds: 5)).then(
+                  (_) => fetchAndPublishClimateStatusFromCar(mqttClient, vin)));
           }
         }
         break;
@@ -216,6 +237,9 @@ void subscribeToCommands(MqttClientWrapper mqttClient, String vin) {
       switch (payload) {
         case 'update':
             fetchAndPublishLocation(mqttClient, vin);
+          break;
+        case 'updatefromcar':
+            fetchAndPublishLocationFromCar(mqttClient, vin);
           break;
         default:
       }
@@ -250,6 +274,24 @@ Future<void> fetchAndPublishLocation(MqttClientWrapper mqttClient, String vin) {
   _log.finer('fetchAndPublishLocation for $vin');
   return _session.executeWithRetry((Vehicle vehicle) =>
            vehicle.fetchLocation(), vin).then(mqttClient.publishStates);
+}
+
+Future<void> fetchAndPublishBatteryStatusFromCar(MqttClientWrapper mqttClient, String vin) {
+  _log.finer('fetchAndPublishBatteryStatusFromCar for $vin');
+  return _session.executeWithRetry((Vehicle vehicle) =>
+           vehicle.fetchBatteryStatusFromCar(), vin).then(mqttClient.publishStates);
+}
+
+Future<void> fetchAndPublishClimateStatusFromCar(MqttClientWrapper mqttClient, String vin) {
+  _log.finer('fetchAndPublishClimateStatusFromCar for $vin');
+  return _session.executeWithRetry((Vehicle vehicle) =>
+           vehicle.fetchClimateStatusFromCar(), vin).then(mqttClient.publishStates);
+}
+
+Future<void> fetchAndPublishLocationFromCar(MqttClientWrapper mqttClient, String vin) {
+  _log.finer('fetchAndPublishLocationFromCar for $vin');
+  return _session.executeWithRetry((Vehicle vehicle) =>
+           vehicle.fetchLocationFromCar(), vin).then(mqttClient.publishStates);
 }
 
 Future<void> fetchAndPublishAllStatus(MqttClientWrapper mqttClient, String vin) {

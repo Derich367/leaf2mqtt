@@ -13,6 +13,9 @@ class LocationInfoBuilder extends BuilderBase {
   LocationInfoBuilder withLongitude(dynamic longitude) =>
     _withInfo('longitude', longitude);
 
+  LocationInfoBuilder withLastUpdatedDateTime(DateTime lastUpdatedDateTime) =>
+    _withInfo('lastUpdatedDateTimeUtc', lastUpdatedDateTime.toUtc().toIso8601String());
+
   LocationInfoBuilder _withInfo(String infoName, dynamic value) =>
       LocationInfoBuilder._withInfo(addInfo(infoName, value));
 }

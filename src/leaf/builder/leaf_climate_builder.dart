@@ -15,6 +15,9 @@ class ClimateInfoBuilder extends BuilderBase {
     _withInfo('RunningStatus', isRunning)
     ._withInfo('runningStatus', isRunning);
 
+  ClimateInfoBuilder withLastUpdatedDateTime(DateTime lastUpdatedDateTime) =>
+    _withInfo('lastUpdatedDateTimeUtc', lastUpdatedDateTime.toUtc().toIso8601String());
+
   ClimateInfoBuilder _withInfo(String infoName, dynamic value) =>
       ClimateInfoBuilder._withInfo(addInfo(infoName, value));
 }

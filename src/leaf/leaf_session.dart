@@ -1,9 +1,6 @@
-import 'package:dartcarwings/dartcarwings.dart';
 import 'package:logging/logging.dart';
 
-import 'carwings_wrapper.dart';
 import 'leaf_vehicle.dart';
-import 'nissan_connect_na_wrapper.dart';
 import 'nissan_connect_wrapper.dart';
 
 final Logger _log = Logger('LeafSession');
@@ -23,28 +20,8 @@ LeafSession createLeafSession(LeafType leafType, String username, String passwor
       return NissanConnectSessionWrapper(username, password);
       break;
 
-    case LeafType.olderCanada:
-      return NissanConnectNASessionWrapper('CA', username, password);
-      break;
-
-    case LeafType.olderUsa:
-      return NissanConnectNASessionWrapper('US', username, password);
-      break;
-
-    case LeafType.olderEurope:
-      return CarwingsWrapper(CarwingsRegion.Europe, username, password);
-      break;
-
-    case LeafType.olderJapan:
-      return CarwingsWrapper(CarwingsRegion.Japan, username, password);
-      break;
-
-    case LeafType.olderAustralia:
-      return CarwingsWrapper(CarwingsRegion.Australia, username, password);
-      break;
-
     default:
-      throw ArgumentError.value(leafType, 'leafType', 'this LeafType is not supported yet.');
+      throw ArgumentError.value(leafType, 'leafType', 'this LeafType is not supported.');
   }
 }
 
@@ -116,6 +93,9 @@ abstract class LeafSession {
         }, vin);
       } catch(e, stackTrace) {
         _logException(e, stackTrace);
+      }
+      if(anyCommandSucceeded){
+        break;
       }
     }
 

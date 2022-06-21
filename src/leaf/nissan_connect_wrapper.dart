@@ -1,12 +1,18 @@
 import 'package:dartnissanconnect/dartnissanconnect.dart';
 import 'package:dartnissanconnect/src/nissanconnect_hvac.dart';
 
+import 'package:logging/logging.dart';
+
 import 'builder/leaf_battery_builder.dart';
 import 'builder/leaf_climate_builder.dart';
 import 'builder/leaf_location_builder.dart';
 import 'builder/leaf_stats_builder.dart';
 import 'leaf_session.dart';
 import 'leaf_vehicle.dart';
+
+final Logger _log = Logger('NissanConnectVehicleWrapper');
+const int _maxRetryCount = 5;
+const int _waitBetweenRequest = 5;
 
 class NissanConnectSessionWrapper extends LeafSessionInternal {
   NissanConnectSessionWrapper(String username, String password)
@@ -64,14 +70,40 @@ class NissanConnectVehicleWrapper extends VehicleInternal {
       .build());
 
   @override
-  Future<Map<String, String>> fetchBatteryStatus() async {
-    final NissanConnectBattery battery = await _getVehicle().requestBatteryStatus();
+  Future<Map<String, String>> fetchBatteryStatusFromCar() async {
+    return await _fetchBatteryStatus(true);
+  }
 
-    final int percentage =
-      double.tryParse(battery.batteryPercentage.replaceFirst('%', ''))?.round();
+  @override
+  Future<Map<String, String>> fetchBatteryStatus() async {
+    return await _fetchBatteryStatus(false);
+  }
+
+  Future<Map<String, String>> _fetchBatteryStatus(bool requestFromCar) async {
+    final NissanConnectVehicle vehicle = _getVehicle();
+    final DateTime startDate = requestFromCar ? DateTime.now() : DateTime.fromMicrosecondsSinceEpoch(0);
+    int retryCount = _maxRetryCount;
+    if(requestFromCar){
+      await vehicle.requestBatteryStatusRefresh();
+      await Future<void>.delayed(Duration(seconds: _waitBetweenRequest));
+    }   
+    NissanConnectBattery battery;
+    do{
+      battery = await vehicle.requestBatteryStatus();
+      if(startDate.isBefore(battery.dateTime)){
+        break;
+      }
+      await Future<void>.delayed(Duration(seconds: _waitBetweenRequest));
+      retryCount--;
+    }while(retryCount > 0);    
+    
+    final double percentage =
+      double.tryParse(battery.batteryPercentage.replaceFirst('%', ''));
+
+    _log.finer('Receveived batteryPercentage: $percentage');
 
     return saveAndPrependVin(BatteryInfoBuilder()
-           .withChargePercentage(percentage ?? -1)
+           .withChargePercentage(percentage?.round() ?? -1)
            .withConnectedStatus(battery.isConnected)
            .withChargingStatus(battery.isCharging)
            .withCruisingRangeAcOffKm(battery.cruisingRangeAcOffKm)
@@ -90,16 +122,42 @@ class NissanConnectVehicleWrapper extends VehicleInternal {
   Future<bool> startCharging() =>
     _getVehicle().requestChargingStart();
 
+    @override
+  Future<bool> stopCharging() =>
+    _getVehicle().requestChargingStop();
+  
+  @override
+  Future<Map<String, String>> fetchClimateStatusFromCar() async {
+    return await _fetchClimateStatus(true);
+  }
+
   @override
   Future<Map<String, String>> fetchClimateStatus() async {
-    final NissanConnectVehicle vehicle = _getVehicle();
+    return await _fetchClimateStatus(false);
+  }
 
-    await vehicle.requestClimateControlStatusRefresh();
-    final NissanConnectHVAC hvac = await vehicle.requestClimateControlStatus();
+  Future<Map<String, String>> _fetchClimateStatus(bool requestFromCar) async {
+    final NissanConnectVehicle vehicle = _getVehicle();
+    final DateTime startDate = requestFromCar ? DateTime.now() : DateTime.fromMicrosecondsSinceEpoch(0);
+    int retryCount = _maxRetryCount;
+    if(requestFromCar){
+      await vehicle.requestClimateControlStatusRefresh();
+      await Future<void>.delayed(Duration(seconds: _waitBetweenRequest));
+    }   
+    NissanConnectHVAC hvac;
+    do{
+      hvac = await vehicle.requestClimateControlStatus();
+      if(startDate.isBefore(hvac.dateTime)){
+        break;
+      }
+      await Future<void>.delayed(Duration(seconds: _waitBetweenRequest));
+      retryCount--;
+    } while(retryCount > 0);
 
     return saveAndPrependVin(ClimateInfoBuilder()
             .withCabinTemperatureCelsius(hvac.cabinTemperature)
             .withHvacRunningStatus(hvac.isRunning)
+            .withLastUpdatedDateTime(hvac.dateTime)
             .build());
   }
 
@@ -115,10 +173,36 @@ class NissanConnectVehicleWrapper extends VehicleInternal {
 
   @override
   Future<Map<String, String>> fetchLocation() async {
-    final NissanConnectLocation location = await _getVehicle().requestLocation();
+    return await _fetchLocation(false);
+  }  
+
+  @override
+  Future<Map<String, String>> fetchLocationFromCar() async{
+    return await _fetchLocation(true);
+  }
+
+  Future<Map<String, String>> _fetchLocation(bool requestFromCar) async {
+    final NissanConnectVehicle vehicle = _getVehicle();
+    final DateTime startDate = requestFromCar ? DateTime.now() : DateTime.fromMicrosecondsSinceEpoch(0);
+    int retryCount = _maxRetryCount;
+    if(requestFromCar){
+      await vehicle.requestLocationRefresh();
+      await Future<void>.delayed(Duration(seconds: _waitBetweenRequest));
+    }   
+    NissanConnectLocation location;
+    do{
+      location = await vehicle.requestLocation();
+      if(startDate.isBefore(location.dateTime)){
+        break;
+      }
+      await Future<void>.delayed(Duration(seconds: _waitBetweenRequest));
+      retryCount--;
+    } while(retryCount > 0);   
+
     return saveAndPrependVin(LocationInfoBuilder()
       .withLatitude(location.latitude)
       .withLongitude(location.longitude)
+      .withLastUpdatedDateTime(location.dateTime)
       .build());
   }
 }
